@@ -13,11 +13,22 @@ st.set_page_config(page_title="Portfolio Optimizer", layout="wide")
 # Portfolio Functions
 # ----------------------------
 def download_adj_close(tickers, start, end):
-    df = pd.DataFrame()
-    for t in tickers:
-        data = yf.download(t, start=start, end=end, progress=False)
-        df[t] = data['Adj Close']
-    return df.dropna(how='all')
+    data = yf.download(tickers, start=start, end=end, progress=False)
+
+    # Handle MultiIndex columns if they appear
+    if isinstance(data.columns, pd.MultiIndex):
+        data = data['Adj Close']
+    else:
+        data = data[['Adj Close']]
+
+    # If only one ticker, make sure it's a DataFrame
+    if isinstance(data, pd.Series):
+        data = data.to_frame(name=tickers[0])
+
+    # Ensure column names match tickers
+    data.columns = tickers
+
+    return data.dropna(how='all')
 
 def compute_log_returns(adj_close_df):
     lr = np.log(adj_close_df / adj_close_df.shift(1))
