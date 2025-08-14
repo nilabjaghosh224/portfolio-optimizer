@@ -13,22 +13,27 @@ st.set_page_config(page_title="Portfolio Optimizer", layout="wide")
 # Portfolio Functions
 # ----------------------------
 def download_adj_close(tickers, start, end):
-    data = yf.download(tickers, start=start, end=end, progress=False)
+    # Download all tickers at once to avoid repeated requests
+    data = yf.download(tickers, start=start, end=end, progress=False, group_by="ticker", auto_adjust=False)
 
-    # Handle MultiIndex columns if they appear
+    # If MultiIndex columns (multiple tickers)
     if isinstance(data.columns, pd.MultiIndex):
-        data = data['Adj Close']
+        # Select only 'Adj Close' level
+        adj_close = data.xs('Adj Close', axis=1, level=1)
     else:
-        data = data[['Adj Close']]
+        # Single ticker — ensure DataFrame format
+        if 'Adj Close' in data.columns:
+            adj_close = data[['Adj Close']]
+        else:
+            raise KeyError("'Adj Close' column not found in Yahoo Finance data")
 
-    # If only one ticker, make sure it's a DataFrame
-    if isinstance(data, pd.Series):
-        data = data.to_frame(name=tickers[0])
+        adj_close.columns = tickers  # rename for consistency
 
-    # Ensure column names match tickers
-    data.columns = tickers
+    # Drop rows where all tickers have NaN
+    adj_close = adj_close.dropna(how='all')
 
-    return data.dropna(how='all')
+    return adj_close
+
 
 def compute_log_returns(adj_close_df):
     lr = np.log(adj_close_df / adj_close_df.shift(1))
