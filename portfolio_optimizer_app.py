@@ -109,7 +109,7 @@ st.markdown("Optimize your portfolio using **Max Sharpe** and **Minimum Variance
 # Sidebar inputs
 with st.sidebar:
     st.header("Portfolio Settings")
-    tickers_input = st.text_input("Enter tickers (comma separated)", "SPY,BND,GLD,QQQ,VTI")
+    tickers_input = st.text_input("Enter tickers (comma separated)", "ITC.BO,TATAMOTORS.BO,HINDUNILVR.BO,MARUTI.BO,HINDPETRO.BO,ADANIPORTS.BO,RELIANCE.BO,WIPRO.BO,DOLLAR.BO,TATASTEEL.BO,HDFCBANK.NS,TITAN.BO")
     tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip() != ""]
     years = st.slider("Years of Historical Data", 1, 10, 5)
     rf_rate = st.number_input("Risk-Free Rate", 0.0, 0.1, 0.02, step=0.005)
