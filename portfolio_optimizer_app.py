@@ -100,11 +100,22 @@ def random_portfolios(mu, cov, n_portfolios=5000):
         vols.append(portfolio_volatility(w, cov))
     return np.array(rets), np.array(vols)
 
+def min_arbitrage_weights(mu, cov, rf, bounds):
+    n = len(mu)
+    w0 = np.array([1.0/n] * n)
+    cons = (
+        {"type": "eq", "fun": lambda w: np.sum(w) - 1.0},
+        {"type": "ineq", "fun": lambda w: np.dot(w, mu) - rf},  # portfolio return ≥ rf
+    )
+    def variance(w): return float(w.T @ cov @ w)
+    res = minimize(variance, w0, method="SLSQP", bounds=bounds, constraints=cons)
+    return res.x
+
 # ----------------------------
 # Streamlit UI
 # ----------------------------
-st.title("📈 Portfolio Optimization (Markowitz MPT)")
-st.markdown("Optimize your portfolio using **Max Sharpe** and **Minimum Variance** strategies.")
+st.title("📈 Portfolio Optimization")
+st.markdown("Optimize your portfolio using **Max Sharpe** and **Minimum Variance** and **Minimum Arbitrage** strategies.")
 
 # Sidebar inputs
 with st.sidebar:
@@ -137,16 +148,21 @@ if run_button:
         vol_mvp = portfolio_volatility(w_mvp, cov)
         sr_mvp = sharpe_ratio(w_mvp, mu, cov, rf_rate)
 
+        w_map = min_arbitrage_weights(mu, cov, rf_rate, bounds)
+        ret_map = portfolio_return(w_map, mu)
+        vol_map = portfolio_volatility(w_map, cov)
+        sr_map = sharpe_ratio(w_map, mu, cov, rf_rate)
+
         fr_rets, fr_vols = efficient_frontier(mu, cov, bounds, 50)
         rand_rets, rand_vols = random_portfolios(mu, cov, n_random)
 
     # Display results
     st.subheader("📊 Portfolio Performance")
     results_df = pd.DataFrame({
-        "Portfolio": ["Max Sharpe", "MVP"],
-        "Return": [ret_sharpe, ret_mvp],
-        "Volatility": [vol_sharpe, vol_mvp],
-        "Sharpe Ratio": [sr_sharpe, sr_mvp]
+        "Portfolio": ["Max Sharpe", "MVP", "Min Arbitrage"],
+        "Return": [ret_sharpe, ret_mvp, ret_map],
+        "Volatility": [vol_sharpe, vol_mvp, vol_map],
+        "Sharpe Ratio": [sr_sharpe, sr_mvp, sr_map]
     })
     st.dataframe(results_df.style.format({"Return": "{:.2%}", "Volatility": "{:.2%}", "Sharpe Ratio": "{:.2f}"}))
 
@@ -156,26 +172,47 @@ if run_button:
     ax.plot(fr_vols, fr_rets, 'b--', linewidth=2, label="Efficient Frontier")
     ax.scatter(vol_sharpe, ret_sharpe, color='r', label="Max Sharpe", s=60)
     ax.scatter(vol_mvp, ret_mvp, color='g', label="MVP", s=60)
+    ax.scatter(vol_map, ret_map, color='orange', label="Min Arbitrage", s=60)
     ax.set_xlabel("Volatility (Annualized)")
     ax.set_ylabel("Expected Return (Annualized)")
     ax.legend()
     st.pyplot(fig)
 
-    # Weight charts
+        # Weight charts
     st.subheader("🔍 Portfolio Weights")
+
+    # Max Sharpe Weights
     fig1, ax1 = plt.subplots()
     ax1.bar(tickers, w_sharpe)
     ax1.set_title("Max Sharpe Weights")
+    ax1.set_xticklabels(tickers, rotation=45, ha="right")  # rotate labels
+    plt.tight_layout()
     st.pyplot(fig1)
 
+    # MVP Weights
     fig2, ax2 = plt.subplots()
     ax2.bar(tickers, w_mvp)
     ax2.set_title("MVP Weights")
+    ax2.set_xticklabels(tickers, rotation=45, ha="right")  # rotate labels
+    plt.tight_layout()
     st.pyplot(fig2)
+
+    # Min Arbitrage Weights
+    fig3, ax3 = plt.subplots()
+    ax3.bar(tickers, w_map)
+    ax3.set_title("Min Arbitrage Weights")
+    ax3.set_xticklabels(tickers, rotation=45, ha="right")  # rotate labels
+    plt.tight_layout()
+    st.pyplot(fig3)
 
     # Download CSV
     csv_buf = io.StringIO()
-    out_df = pd.DataFrame({"Ticker": tickers, "Max Sharpe Weight": w_sharpe, "MVP Weight": w_mvp})
+    out_df = pd.DataFrame({
+        "Ticker": tickers,
+        "Max Sharpe Weight": w_sharpe,
+        "MVP Weight": w_mvp,
+        "Min Arb Weight": w_map
+    })
     out_df.to_csv(csv_buf, index=False)
     st.download_button("💾 Download Weights CSV", csv_buf.getvalue(), "portfolio_weights.csv", "text/csv")
 
